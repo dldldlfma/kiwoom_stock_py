@@ -13,7 +13,7 @@ class MyWindow(QMainWindow):
         self.kiwoom.OnReceiveTrData.connect(self.receive_trdata)
 
         self.setWindowTitle("PyStock")
-        self.setGeometry(300, 300, 300, 550)
+        self.setGeometry(300, 300, 600, 550)
 
         label = QLabel('종목 코드 : ', self)
         label.move(20,20)
@@ -39,6 +39,14 @@ class MyWindow(QMainWindow):
         self.text_edit2 = QTextEdit(self)
         self.text_edit2.setGeometry(10,300,280,180)
         self.text_edit2.setEnabled(False)
+        #--------------------------------------------------------
+        
+        btn3 = QPushButton("종목 코드 얻기", self)
+        btn3.move(490,20)
+        btn3.clicked.connect(self.btn3_clicked)
+
+        self.code_listWidget = QListWidget(self)
+        self.code_listWidget.setGeometry(310,60,280,450)        
         #--------------------------------------------------------
     
     def event_connect(self, err_code):
@@ -72,6 +80,17 @@ class MyWindow(QMainWindow):
         self.text_edit2.append("계좌번호 : " +account_num.rstrip(';'))
         self.text_edit2.append("사용자ID : " +user_id.rstrip(';'))
         self.text_edit2.append("사용자이름 : " +user_name.rstrip(';'))
+
+    def btn3_clicked(self):
+        ret = self.kiwoom.dynamicCall("GetCodeListByMarket(QString)", ["0"])
+        kospi_code_list = ret.split(';')
+        kospi_code_name_list = []
+
+        for x in kospi_code_list:
+            name = self.kiwoom.dynamicCall("GetMasterCodeName(QString)", [x])
+            kospi_code_name_list.append(x + " : " + name)
+
+        self.code_listWidget.addItems(kospi_code_name_list)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
