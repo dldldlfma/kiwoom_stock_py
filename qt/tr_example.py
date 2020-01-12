@@ -2,6 +2,7 @@ import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QAxContainer import *
+from pprint import pprint
 
 class MyWindow(QMainWindow):
     def __init__(self):
@@ -47,6 +48,8 @@ class MyWindow(QMainWindow):
 
         self.code_listWidget = QListWidget(self)
         self.code_listWidget.setGeometry(310,60,280,450)        
+
+        self.code_listWidget.itemDoubleClicked.connect(self.stock_code_list_double_click) #double click 신호가 오면 사용
         #--------------------------------------------------------
     
     def event_connect(self, err_code):
@@ -72,6 +75,7 @@ class MyWindow(QMainWindow):
             self.text_edit.append("종목명: " + name.strip())
             self.text_edit.append("거래량: " + volume.strip())
             self.text_edit.append("현재가: " + price.strip())
+            self.text_edit.append("\n")
 
     def btn2_clicked(self):
         account_num = self.kiwoom.dynamicCall("GetLoginInfo(QString)", ["ACCNO"])
@@ -91,6 +95,12 @@ class MyWindow(QMainWindow):
             kospi_code_name_list.append(x + " : " + name)
 
         self.code_listWidget.addItems(kospi_code_name_list)
+    
+    def stock_code_list_double_click(self):
+        selected_stock_code=self.code_listWidget.selectedItems().pop().text()[0:6] #QListWidget에서 선택된 값의 stock code부분만 추출
+        self.code_edit.setText(selected_stock_code)
+        self.btn1_clicked()
+        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
