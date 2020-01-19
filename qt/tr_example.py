@@ -2,7 +2,10 @@ import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QAxContainer import *
+from PyQt5.QtCore import *
 from pprint import pprint
+
+import matplotlib.pyplot as plt
 
 class MyWindow(QMainWindow):
     def __init__(self):
@@ -12,6 +15,7 @@ class MyWindow(QMainWindow):
         self.kiwoom.dynamicCall("CommConnect()")
         self.kiwoom.OnEventConnect.connect(self.event_connect)
         self.kiwoom.OnReceiveTrData.connect(self.receive_trdata)
+        self.remained_data = None
 
         self.setWindowTitle("PyStock")
         self.setGeometry(300, 300, 800, 550)
@@ -67,12 +71,16 @@ class MyWindow(QMainWindow):
 
         #SetInpuValue
         self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드",code)
-
         #CommRqData
         self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opt10001_req", "opt10001",0,"0101")
 
     def receive_trdata(self, screen_no, rqname, trcode, recordname, prev_next, data_len, err_coe, msg1, msg2):
-        if rqname =="opt10001_req":
+        if(prev_next =='2'):
+            self.remained_data =True
+        else:
+            self.remained_data = False
+
+        if(rqname =="opt10001_req"):
             name = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "", rqname, 0, "종목명")
             volume = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "", rqname, 0, "거래량")
             price = self.kiwoom.dynamicCall("CommGetData(QString, QSTring, QString, int, QString)",trcode, "", rqname, 0, "현재가")
@@ -81,9 +89,47 @@ class MyWindow(QMainWindow):
             self.text_edit.append("거래량: " + volume.strip())
             self.text_edit.append("현재가: " + price.strip())
             self.text_edit.append("\n")
-        if rqname =="opt10081_req":
-            value = self.kiwwom.dynamicCall("CommGetData(QString, QString, int, QString)", rqname, trcode, 0, "화면번호")
-            print(value)
+        
+        elif(rqname =="opt10081_req"):#일일시세 확인이라면
+            data_cnt = self.kiwoom.dynamicCall("GetRepeatCnt(QString, QString)", trcode, rqname)#얼마나 반복해서 읽어야 하는지 확인하고
+            
+            date_list=[]
+            close_price_list=[]
+
+            for i in range(data_cnt):
+                date = self._comm_get_data(trcode, "", rqname, i, "일자")
+                open = self._comm_get_data(trcode, "", rqname, i, "시가")
+                high = self._comm_get_data(trcode, "", rqname, i, "고가")
+                low = self._comm_get_data(trcode, "", rqname, i, "저가")
+                close = self._comm_get_data(trcode, "", rqname, i, "현재가")
+                volume = self._comm_get_data(trcode, "", rqname, i, "거래량")
+                date_list.append(date[2:])
+                close_price_list.append(int(close))
+                #print(date, open, high, low, close, volume)
+            
+            
+            date_list.reverse()
+            close_price_list.reverse()
+
+            short_date = []
+            short_close = []
+            for i in range(data_cnt):
+                if(i % 10 ==0):
+                    short_date.append(date_list[i])
+                    short_close.append(close_price_list[i])
+
+            for i in range(len(short_date)):
+                print(short_date[i],short_close[i])
+                #print(type(date_list[i]),type(close_price_list[i]))
+
+            plt.figure()
+            plt.plot(short_date,short_close)
+            plt.xticks(rotation=90)
+
+            plt.show()
+
+        
+
 
     def btn2_clicked(self): #로그인 정보 확인
         account_num = self.kiwoom.dynamicCall("GetLoginInfo(QString)", ["ACCNO"])
@@ -109,13 +155,43 @@ class MyWindow(QMainWindow):
         self.code_edit.setText(selected_stock_code)
         self.btn1_clicked()
         
+    def _comm_get_data(self, code, real_type, field_name, index, item_name):
+        ret = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString", code,
+                               real_type, field_name, index, item_name)
+        return ret.strip()
+    
+    def set_input_value(self, id, value):
+        self.dynamicCall("SetInputValue(QString, QString)", id, value)
+
+    def comm_rq_data(self, rqname, trcode, next, screen_no):
+        self.dynamicCall("CommRqData(QString, QString, int, QString", rqname, trcode, next, screen_no)
+        self.tr_event_loop = QEventLoop()
+        self.tr_event_loop.exec_()
+    
     def take_day_graph(self):
         code = self.code_edit.text()
+        rqname = "opt10081_req"
+        
+        #SetInpuValue
         self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드",code)
-        self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "기준일자","191230")
-        self.kiwoom.dynamicCall("SetInputValue(QString, int)", "수정주가구분",0)
+        self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "기준일자","20200117")
+        self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "수정주가구분",1)
+        
+        #CommRqData
+        self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", rqname, "opt10081",0,"0101")
 
+        while self.remained_data == True:
+            time.sleep(0.2)
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드",code)
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "기준일자","20200117")
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "수정주가구분",1)
+        
+            #CommRqData
+            self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", rqname, "opt10081",2,"0101")
 
+        
+
+    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     myWindow = MyWindow()
